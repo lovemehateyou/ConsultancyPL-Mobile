@@ -1,7 +1,6 @@
 import { Link, router } from 'expo-router';
 import { useState } from 'react';
 import {
-  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,13 +13,23 @@ import * as DocumentPicker from 'expo-document-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { BUSINESS_SECTORS, LEGAL_BUSINESS_TYPES, MERI_COLORS } from '@/constants/meri';
+import { useSignupDraft } from '@/context/signup-context';
+import { ApiError } from '@/services/api';
+import { signup, UploadFile } from '@/services/auth';
 
 export default function SignupStepTwoScreen() {
+  const { draft, resetDraft } = useSignupDraft();
   const [businessName, setBusinessName] = useState('');
-  const [businessAddress, setBusinessAddress] = useState('');
+  const [businessCity, setBusinessCity] = useState('');
+  const [businessSubCity, setBusinessSubCity] = useState('');
+  const [businessWereda, setBusinessWereda] = useState('');
+  const [businessKebele, setBusinessKebele] = useState('');
   const [legalType, setLegalType] = useState(LEGAL_BUSINESS_TYPES[0]);
   const [sector, setSector] = useState(BUSINESS_SECTORS[0]);
-  const [nationalIdFile, setNationalIdFile] = useState('');
+  const [tin, setTin] = useState('');
+  const [nationalIdFile, setNationalIdFile] = useState<UploadFile | null>(null);
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleUploadNationalId = async () => {
     const result = await DocumentPicker.getDocumentAsync({
@@ -33,16 +42,65 @@ export default function SignupStepTwoScreen() {
       return;
     }
 
-    setNationalIdFile(result.assets[0].name);
+    const asset = result.assets[0];
+    setNationalIdFile({
+      uri: asset.uri,
+      name: asset.name ?? 'national-id',
+      type: asset.mimeType ?? 'application/octet-stream',
+    });
   };
 
-  const handleCompleteSignup = () => {
-    if (!businessName.trim() || !businessAddress.trim() || !nationalIdFile) {
-      Alert.alert('Missing information', 'Please complete all business fields and upload your national ID.');
+  const handleCompleteSignup = async () => {
+    if (!draft.userName.trim() || !draft.email.trim() || !draft.password.trim()) {
+      setError('Please complete step 1 before submitting.');
       return;
     }
 
-    router.replace('/(tabs)/home');
+    if (
+      !businessName.trim() ||
+      !businessCity.trim() ||
+      !businessSubCity.trim() ||
+      !businessWereda.trim() ||
+      !businessKebele.trim()
+    ) {
+      setError('Please complete all required business fields.');
+      return;
+    }
+
+    setError('');
+    setIsLoading(true);
+    try {
+      await signup({
+        userName: draft.userName,
+        email: draft.email,
+        password: draft.password,
+        role: draft.role,
+        phoneNumber: draft.phoneNumber,
+        userAddress: draft.userAddress,
+        BusinessName: businessName,
+        BusinessCity: businessCity,
+        BusinessSubCity: businessSubCity,
+        BusinessWereda: businessWereda,
+        BusinessKebele: businessKebele,
+        BusinessType: legalType,
+        Business: sector,
+        TIN: tin.trim() || undefined,
+        agreedToTerms: draft.agreedToTerms,
+        nationalIdFile: nationalIdFile ?? undefined,
+      });
+      resetDraft();
+      router.replace('/(tabs)/home');
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Signup failed. Please try again.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -63,12 +121,45 @@ export default function SignupStepTwoScreen() {
         </View>
 
         <View style={styles.inputGroup}>
-          <Text style={styles.label}>Business address</Text>
+          <Text style={styles.label}>Business city</Text>
           <TextInput
             style={styles.input}
-            value={businessAddress}
-            onChangeText={setBusinessAddress}
-            placeholder="Business address"
+            value={businessCity}
+            onChangeText={setBusinessCity}
+            placeholder="Business city"
+            placeholderTextColor={MERI_COLORS.mutedText}
+          />
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Business sub-city</Text>
+          <TextInput
+            style={styles.input}
+            value={businessSubCity}
+            onChangeText={setBusinessSubCity}
+            placeholder="Business sub-city"
+            placeholderTextColor={MERI_COLORS.mutedText}
+          />
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Business wereda</Text>
+          <TextInput
+            style={styles.input}
+            value={businessWereda}
+            onChangeText={setBusinessWereda}
+            placeholder="Business wereda"
+            placeholderTextColor={MERI_COLORS.mutedText}
+          />
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Business kebele</Text>
+          <TextInput
+            style={styles.input}
+            value={businessKebele}
+            onChangeText={setBusinessKebele}
+            placeholder="Business kebele"
             placeholderTextColor={MERI_COLORS.mutedText}
           />
         </View>
@@ -96,15 +187,33 @@ export default function SignupStepTwoScreen() {
         </View>
 
         <View style={styles.inputGroup}>
+          <Text style={styles.label}>TIN (optional)</Text>
+          <TextInput
+            style={styles.input}
+            value={tin}
+            onChangeText={setTin}
+            placeholder="Tax identification number"
+            placeholderTextColor={MERI_COLORS.mutedText}
+          />
+        </View>
+
+        <View style={styles.inputGroup}>
           <Text style={styles.label}>National ID (PDF or Image)</Text>
           <Pressable style={styles.uploadButton} onPress={handleUploadNationalId}>
             <Text style={styles.uploadButtonText}>Upload File</Text>
           </Pressable>
-          <Text style={styles.fileName}>{nationalIdFile || 'No file selected yet.'}</Text>
+          <Text style={styles.fileName}>{nationalIdFile?.name || 'No file selected yet.'}</Text>
         </View>
 
-        <Pressable style={styles.primaryButton} onPress={handleCompleteSignup}>
-          <Text style={styles.primaryButtonText}>Complete Sign Up</Text>
+        {!!error && <Text style={styles.error}>{error}</Text>}
+
+        <Pressable
+          style={[styles.primaryButton, isLoading && styles.buttonDisabled]}
+          onPress={handleCompleteSignup}
+          disabled={isLoading}>
+          <Text style={styles.primaryButtonText}>
+            {isLoading ? 'Submitting...' : 'Complete Sign Up'}
+          </Text>
         </Pressable>
 
         <Link href="/(auth)/signup-step-one" style={styles.backLink}>
@@ -170,12 +279,19 @@ const styles = StyleSheet.create({
     color: MERI_COLORS.mutedText,
     fontSize: 13,
   },
+  error: {
+    color: MERI_COLORS.danger,
+    fontWeight: '500',
+  },
   primaryButton: {
     marginTop: 4,
     borderRadius: 10,
     backgroundColor: MERI_COLORS.accent,
     paddingVertical: 14,
     alignItems: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   primaryButtonText: {
     color: MERI_COLORS.background,

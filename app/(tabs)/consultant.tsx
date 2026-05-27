@@ -1,20 +1,161 @@
 import { router } from 'expo-router';
-import { ScrollView, StyleSheet, Text, TextInput, View, Pressable } from 'react-native';
+import { ActivityIndicator, Image, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Modal } from 'react-native';
 
 import { MERI_COLORS } from '@/constants/meri';
-import { CONSULTANTS, ConsultantItem } from '@/data/app-data';
+import { fetchAvailabilityByConsultant, type AvailabilitySlot } from '@/services/availability';
+import { createBooking } from '@/services/bookings';
+import { fetchConsultants, type Consultant } from '@/services/consultants';
 
 export default function ConsultantTabScreen() {
   const [category, setCategory] = useState('All Categories');
   const [popupVisible, setPopupVisible] = useState(false);
-  const [selectedConsultant, setSelectedConsultant] = useState<ConsultantItem | null>(null);
+  const [selectedConsultant, setSelectedConsultant] = useState<Consultant | null>(null);
+  const [search, setSearch] = useState('');
+  const [consultants, setConsultants] = useState<Consultant[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [availability, setAvailability] = useState<AvailabilitySlot[]>([]);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [availabilityError, setAvailabilityError] = useState<string | null>(null);
+  const [bookingSlotId, setBookingSlotId] = useState<string | null>(null);
 
-  const openBookingPopup = (consultant: ConsultantItem) => {
+  useEffect(() => {
+    let isActive = true;
+
+    const loadConsultants = async () => {
+      setIsLoading(true);
+      setErrorMessage(null);
+
+      try {
+        const data = await fetchConsultants({ search: search.trim() ? search.trim() : undefined });
+        if (isActive) {
+          setConsultants(data);
+        }
+      } catch (err) {
+        if (isActive) {
+          setErrorMessage(err instanceof Error ? err.message : 'Failed to load consultants.');
+        }
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    const debounceHandle = setTimeout(loadConsultants, 250);
+
+    return () => {
+      isActive = false;
+      clearTimeout(debounceHandle);
+    };
+  }, [search]);
+
+  useEffect(() => {
+    if (!popupVisible || !selectedConsultant) {
+      return;
+    }
+
+    let isActive = true;
+
+    const loadAvailability = async () => {
+      setAvailabilityLoading(true);
+      setAvailabilityError(null);
+
+      try {
+        const slots = await fetchAvailabilityByConsultant(selectedConsultant.id, { status: 'open' });
+        if (isActive) {
+          setAvailability(slots);
+        }
+      } catch (err) {
+        if (isActive) {
+          setAvailabilityError(err instanceof Error ? err.message : 'Failed to load availability.');
+        }
+      } finally {
+        if (isActive) {
+          setAvailabilityLoading(false);
+        }
+      }
+    };
+
+    loadAvailability();
+
+    return () => {
+      isActive = false;
+    };
+  }, [popupVisible, selectedConsultant]);
+
+  const visibleConsultants = useMemo(() => {
+    if (category === 'All Categories') {
+      return consultants;
+    }
+
+    const query = category.toLowerCase();
+    return consultants.filter((consultant) => {
+      return [consultant.businessArea, consultant.businessType, consultant.title]
+        .filter(Boolean)
+        .some((value) => value?.toLowerCase().includes(query));
+    });
+  }, [category, consultants]);
+
+  const openBookingPopup = (consultant: Consultant) => {
     setSelectedConsultant(consultant);
     setPopupVisible(true);
+  };
+
+  const closeBookingPopup = () => {
+    setPopupVisible(false);
+    setAvailability([]);
+    setAvailabilityError(null);
+    setBookingSlotId(null);
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part[0]?.toUpperCase())
+      .join('');
+  };
+
+  const formatSlotDate = (value: string) => new Date(value).toLocaleDateString(undefined, {
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric',
+  });
+
+  const formatSlotTime = (value: string) => new Date(value).toLocaleTimeString(undefined, {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  const handleBookSlot = async (slot: AvailabilitySlot) => {
+    if (!selectedConsultant) {
+      return;
+    }
+
+    setBookingSlotId(slot.id);
+    setAvailabilityError(null);
+
+    try {
+      const result = await createBooking({
+        consultantId: selectedConsultant.id,
+        availabilityId: slot.id,
+      });
+
+      if (result.payment?.checkout_url) {
+        await Linking.openURL(result.payment.checkout_url);
+      }
+
+      setAvailability((prev) => prev.filter((item) => item.id !== slot.id));
+    } catch (err) {
+      setAvailabilityError(err instanceof Error ? err.message : 'Failed to create booking.');
+    } finally {
+      setBookingSlotId(null);
+    }
   };
 
   return (
@@ -30,28 +171,52 @@ export default function ConsultantTabScreen() {
             <Picker.Item label="Business" value="Business" />
           </Picker>
         </View>
-        <TextInput placeholder="mm/dd/yyyy" style={styles.input} placeholderTextColor={MERI_COLORS.mutedText} />
+        <TextInput
+          placeholder="Search by name or specialty"
+          style={styles.input}
+          placeholderTextColor={MERI_COLORS.mutedText}
+          value={search}
+          onChangeText={setSearch}
+        />
       </View>
 
-      {CONSULTANTS.map((person) => (
-        <Pressable key={person.id} style={styles.consultantCard} onPress={() => router.push(`/(tabs)/consultant/${person.id}`)}>
-          <View style={styles.personInfo}>
-            <Text style={styles.name}>{person.name}</Text>
-            <Text style={styles.role}>{person.role}</Text>
-            <Text style={styles.email}>{person.email}</Text>
-          </View>
-          <Pressable
-            style={styles.bookButton}
-            onPress={(event) => {
-              event.stopPropagation();
-              openBookingPopup(person);
-            }}>
-            <Text style={styles.bookText}>Book</Text>
+      {isLoading ? (
+        <View style={styles.stateCard}>
+          <ActivityIndicator color={MERI_COLORS.accent} />
+          <Text style={styles.stateText}>Loading consultants...</Text>
+        </View>
+      ) : errorMessage ? (
+        <Text style={styles.errorText}>{errorMessage}</Text>
+      ) : visibleConsultants.length === 0 ? (
+        <Text style={styles.emptyText}>No consultants match your filters.</Text>
+      ) : (
+        visibleConsultants.map((person) => (
+          <Pressable key={person.id} style={styles.consultantCard} onPress={() => router.push(`/(tabs)/consultant/${person.id}`)}>
+            <View style={styles.avatar}>
+              {person.profileImage ? (
+                <Image source={{ uri: person.profileImage }} style={styles.avatarImage} />
+              ) : (
+                <Text style={styles.avatarText}>{getInitials(person.name)}</Text>
+              )}
+            </View>
+            <View style={styles.personInfo}>
+              <Text style={styles.name}>{person.name}</Text>
+              <Text style={styles.role}>{person.businessArea || person.businessType || person.title || 'Consultant'}</Text>
+              <Text style={styles.email}>{person.email}</Text>
+            </View>
+            <Pressable
+              style={styles.bookButton}
+              onPress={(event) => {
+                event.stopPropagation();
+                openBookingPopup(person);
+              }}>
+              <Text style={styles.bookText}>Book</Text>
+            </Pressable>
           </Pressable>
-        </Pressable>
-      ))}
+        ))
+      )}
 
-      <Modal transparent visible={popupVisible} animationType="fade" onRequestClose={() => setPopupVisible(false)}>
+      <Modal transparent visible={popupVisible} animationType="fade" onRequestClose={closeBookingPopup}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Availability</Text>
@@ -63,18 +228,32 @@ export default function ConsultantTabScreen() {
               <Text style={styles.rowCol}>Status</Text>
             </View>
 
-            {selectedConsultant?.availability.map((slot) => (
-              <View key={`${slot.day}-${slot.startTime}`} style={styles.rowBody}>
-                <Text style={[styles.rowCol, styles.rowColWide]}>{slot.day}</Text>
-                <Text style={styles.rowCol}>{slot.startTime}</Text>
-                <Text style={styles.rowCol}>{slot.endTime}</Text>
-                <Pressable style={[styles.slotButton, slot.available ? styles.slotBook : styles.slotCant]}>
-                  <Text style={styles.slotText}>{slot.available ? 'Book' : 'Cant Book'}</Text>
-                </Pressable>
+            {availabilityLoading ? (
+              <View style={styles.modalStateCard}>
+                <ActivityIndicator color={MERI_COLORS.accent} />
+                <Text style={styles.stateText}>Loading availability...</Text>
               </View>
-            ))}
+            ) : availabilityError ? (
+              <Text style={styles.errorText}>{availabilityError}</Text>
+            ) : availability.length === 0 ? (
+              <Text style={styles.emptyText}>No open slots yet.</Text>
+            ) : (
+              availability.map((slot) => (
+                <View key={slot.id} style={styles.rowBody}>
+                  <Text style={[styles.rowCol, styles.rowColWide]}>{formatSlotDate(slot.slotStart)}</Text>
+                  <Text style={styles.rowCol}>{formatSlotTime(slot.slotStart)}</Text>
+                  <Text style={styles.rowCol}>{formatSlotTime(slot.slotEnd)}</Text>
+                  <Pressable
+                    style={[styles.slotButton, styles.slotBook]}
+                    disabled={bookingSlotId === slot.id}
+                    onPress={() => handleBookSlot(slot)}>
+                    <Text style={styles.slotText}>{bookingSlotId === slot.id ? 'Booking...' : 'Book'}</Text>
+                  </Pressable>
+                </View>
+              ))
+            )}
 
-            <Pressable style={styles.closeButton} onPress={() => setPopupVisible(false)}>
+            <Pressable style={styles.closeButton} onPress={closeBookingPopup}>
               <Text style={styles.closeButtonText}>Close</Text>
             </Pressable>
           </View>
@@ -121,8 +300,25 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 12,
     flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center',
+    gap: 12,
+  },
+  avatar: {
+    height: 46,
+    width: 46,
+    borderRadius: 23,
+    backgroundColor: '#DBEAFE',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarImage: {
+    height: 46,
+    width: 46,
+    borderRadius: 23,
+  },
+  avatarText: {
+    color: MERI_COLORS.accent,
+    fontWeight: '700',
   },
   personInfo: {
     flex: 1,
@@ -217,5 +413,27 @@ const styles = StyleSheet.create({
   closeButtonText: {
     color: MERI_COLORS.background,
     fontWeight: '700',
+  },
+  stateCard: {
+    paddingVertical: 16,
+    alignItems: 'center',
+    gap: 8,
+  },
+  modalStateCard: {
+    paddingVertical: 10,
+    alignItems: 'center',
+    gap: 6,
+  },
+  stateText: {
+    color: MERI_COLORS.mutedText,
+    fontWeight: '600',
+  },
+  errorText: {
+    color: MERI_COLORS.accent,
+    fontWeight: '600',
+  },
+  emptyText: {
+    color: MERI_COLORS.mutedText,
+    fontWeight: '600',
   },
 });

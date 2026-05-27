@@ -13,16 +13,37 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { MERI_COLORS } from '@/constants/meri';
+import { ApiError } from '@/services/api';
+import { login } from '@/services/auth';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = () => {
+  const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
+      setError('Please enter your email and password.');
       return;
     }
-    router.replace('/(tabs)/home');
+
+    setError('');
+    setIsLoading(true);
+    try {
+      await login({ email, password });
+      router.replace('/(tabs)/home');
+    } catch (err) {
+      if (err instanceof ApiError) {
+        setError(err.message);
+      } else if (err instanceof Error) {
+        setError(err.message);
+      } else {
+        setError('Login failed. Please try again.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -61,8 +82,13 @@ export default function LoginScreen() {
               />
             </View>
 
-            <Pressable style={styles.primaryButton} onPress={handleLogin}>
-              <Text style={styles.primaryButtonText}>Log In</Text>
+            {!!error && <Text style={styles.error}>{error}</Text>}
+
+            <Pressable
+              style={[styles.primaryButton, isLoading && styles.buttonDisabled]}
+              onPress={handleLogin}
+              disabled={isLoading}>
+              <Text style={styles.primaryButtonText}>{isLoading ? 'Logging in...' : 'Log In'}</Text>
             </Pressable>
 
             <View style={styles.footerRow}>
@@ -131,12 +157,19 @@ const styles = StyleSheet.create({
     color: MERI_COLORS.text,
     fontSize: 15,
   },
+  error: {
+    color: MERI_COLORS.danger,
+    fontWeight: '500',
+  },
   primaryButton: {
     marginTop: 8,
     borderRadius: 10,
     backgroundColor: MERI_COLORS.accent,
     paddingVertical: 14,
     alignItems: 'center',
+  },
+  buttonDisabled: {
+    opacity: 0.7,
   },
   primaryButtonText: {
     color: MERI_COLORS.background,

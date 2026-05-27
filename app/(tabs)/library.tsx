@@ -1,14 +1,63 @@
 import { router } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import { MERI_COLORS } from '@/constants/meri';
-import { ARTICLES } from '@/data/app-data';
+import { fetchContentList, type ContentItem } from '@/services/content';
 
 export default function LibraryTabScreen() {
   const [category, setCategory] = useState('All Categories');
   const [pricing, setPricing] = useState('Paid / Free');
+  const [search, setSearch] = useState('');
+  const [items, setItems] = useState<ContentItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadContent = async () => {
+      setIsLoading(true);
+      setErrorMessage(null);
+
+      try {
+        const data = await fetchContentList({
+          category: category === 'All Categories' ? undefined : category,
+          search: search.trim() ? search.trim() : undefined,
+        });
+
+        if (isActive) {
+          setItems(data);
+        }
+      } catch (err) {
+        if (isActive) {
+          setErrorMessage(err instanceof Error ? err.message : 'Failed to load library content.');
+        }
+      } finally {
+        if (isActive) {
+          setIsLoading(false);
+        }
+      }
+    };
+
+    const debounceHandle = setTimeout(loadContent, 250);
+
+    return () => {
+      isActive = false;
+      clearTimeout(debounceHandle);
+    };
+  }, [category, search]);
+
+  const visibleItems = useMemo(() => {
+    if (pricing === 'Free') {
+      return items.filter((item) => item.contentType === 'article');
+    }
+    if (pricing === 'Paid') {
+      return items.filter((item) => item.contentType === 'file');
+    }
+    return items;
+  }, [items, pricing]);
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
@@ -24,7 +73,13 @@ export default function LibraryTabScreen() {
           </Picker>
         </View>
 
-        <TextInput placeholder="mm/dd/yyyy" style={styles.input} placeholderTextColor={MERI_COLORS.mutedText} />
+        <TextInput
+          placeholder="Search by title or description"
+          style={styles.input}
+          placeholderTextColor={MERI_COLORS.mutedText}
+          value={search}
+          onChangeText={setSearch}
+        />
 
         <View style={styles.pickerWrap}>
           <Picker selectedValue={pricing} onValueChange={(value) => setPricing(value)}>
@@ -35,15 +90,30 @@ export default function LibraryTabScreen() {
         </View>
       </View>
 
-      {ARTICLES.map((item) => (
-        <Pressable key={item.id} style={styles.articleCard} onPress={() => router.push(`/(tabs)/article/${item.id}`)}>
-          <View style={styles.articleImagePlaceholder}>
-            <Text style={styles.placeholderText}>Article Cover</Text>
-          </View>
-          <Text style={styles.articleTitle}>{item.title}</Text>
-          <Text style={styles.articleCategory}>{item.category}</Text>
-        </Pressable>
-      ))}
+      {isLoading ? (
+        <View style={styles.stateCard}>
+          <ActivityIndicator color={MERI_COLORS.accent} />
+          <Text style={styles.stateText}>Loading library content...</Text>
+        </View>
+      ) : errorMessage ? (
+        <Text style={styles.errorText}>{errorMessage}</Text>
+      ) : visibleItems.length === 0 ? (
+        <Text style={styles.emptyText}>No content matches your filters yet.</Text>
+      ) : (
+        visibleItems.map((item) => (
+          <Pressable key={item.id} style={styles.articleCard} onPress={() => router.push(`/(tabs)/article/${item.id}`)}>
+            {item.imageUrl ? (
+              <Image source={{ uri: item.imageUrl }} style={styles.articleImage} resizeMode="cover" />
+            ) : (
+              <View style={styles.articleImagePlaceholder}>
+                <Text style={styles.placeholderText}>Article Cover</Text>
+              </View>
+            )}
+            <Text style={styles.articleTitle}>{item.title}</Text>
+            <Text style={styles.articleCategory}>{item.category}</Text>
+          </Pressable>
+        ))
+      )}
     </ScrollView>
   );
 }
@@ -93,6 +163,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  articleImage: {
+    height: 140,
+    borderRadius: 10,
+    backgroundColor: '#DBEAFE',
+  },
   placeholderText: {
     color: MERI_COLORS.accent,
     fontWeight: '600',
@@ -105,6 +180,23 @@ const styles = StyleSheet.create({
   },
   articleCategory: {
     color: MERI_COLORS.accent,
+    fontWeight: '600',
+  },
+  stateCard: {
+    paddingVertical: 16,
+    gap: 8,
+    alignItems: 'center',
+  },
+  stateText: {
+    color: MERI_COLORS.mutedText,
+    fontWeight: '600',
+  },
+  errorText: {
+    color: MERI_COLORS.accent,
+    fontWeight: '600',
+  },
+  emptyText: {
+    color: MERI_COLORS.mutedText,
     fontWeight: '600',
   },
 });
