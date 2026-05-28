@@ -1,4 +1,5 @@
-import { useLocalSearchParams } from 'expo-router';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
 import { ActivityIndicator, Image, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useEffect, useState } from 'react';
 
@@ -73,25 +74,37 @@ export default function ArticleDetailsScreen() {
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
-      {article.imageUrl ? (
-        <Image source={{ uri: article.imageUrl }} style={styles.coverImage} resizeMode="cover" />
-      ) : null}
-      <Text style={styles.title}>{article.title}</Text>
-      <Text style={styles.category}>{article.category}</Text>
+    <>
+      <Stack.Screen
+        options={{
+          title: 'Article',
+          headerLeft: () => (
+            <Pressable style={styles.headerBackButton} onPress={() => router.back()}>
+              <Ionicons name="chevron-back" size={24} color={MERI_COLORS.text} />
+            </Pressable>
+          ),
+        }}
+      />
+      <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+        {article.imageUrl ? (
+          <Image source={{ uri: article.imageUrl }} style={styles.coverImage} resizeMode="cover" />
+        ) : null}
+        <Text style={styles.title}>{article.title}</Text>
+        <Text style={styles.category}>{article.category}</Text>
 
-      <View style={styles.articleBodyCard}>
-        <Text style={styles.articleBody}>{article.description || 'No description available.'}</Text>
-      </View>
+        <View style={styles.articleBodyCard}>
+          <Text style={styles.articleBody}>{article.description || 'No description available.'}</Text>
+        </View>
 
-      {article.contentType === 'file' && article.fileUrl ? (
-        <Pressable style={styles.downloadButton} onPress={() => Linking.openURL(article.fileUrl ?? '')}>
-          <Text style={styles.downloadText}>Download Article</Text>
-        </Pressable>
-      ) : (
-        <Text style={styles.privateText}>This content is not downloadable.</Text>
-      )}
-    </ScrollView>
+        {article.contentType === 'file' && article.fileUrl ? (
+          <Pressable style={styles.downloadButton} onPress={() => Linking.openURL(article.fileUrl ?? '')}>
+            <Text style={styles.downloadText}>Download Article</Text>
+          </Pressable>
+        ) : (
+          <Text style={styles.privateText}>This content is not downloadable.</Text>
+        )}
+      </ScrollView>
+    </>
   );
 }
 
@@ -160,5 +173,9 @@ const styles = StyleSheet.create({
   privateText: {
     color: MERI_COLORS.mutedText,
     fontStyle: 'italic',
+  },
+  headerBackButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
 });

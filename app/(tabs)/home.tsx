@@ -1,11 +1,11 @@
 import { router } from 'expo-router';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { MERI_COLORS } from '@/constants/meri';
 import { useAppState } from '@/context/app-state';
 
 export default function HomeTabScreen() {
-  const { tasks, completedCount, progressPercent } = useAppState();
+  const { tasks, completedCount, progressPercent, isLoading, errorMessage, refreshTasks } = useAppState();
 
   const stats = [
     { label: 'Total Tasks', value: String(tasks.length) },
@@ -37,17 +37,35 @@ export default function HomeTabScreen() {
       </View>
 
       <Text style={styles.sectionTitle}>Active Tasks</Text>
-      {tasks.map((task) => (
-        <Pressable key={task.id} style={styles.taskRow} onPress={() => router.push(`/(tabs)/task/${task.id}`)}>
-          <View>
-            <Text style={styles.taskName}>{task.title}</Text>
-            <Text style={styles.taskRole}>{task.role}</Text>
-          </View>
-          <View style={[styles.badge, task.completed ? styles.badgeDone : styles.badgeActive]}>
-            <Text style={task.completed ? styles.doneText : styles.activeText}>{task.completed ? 'Completed' : 'Active'}</Text>
-          </View>
-        </Pressable>
-      ))}
+      {isLoading ? (
+        <View style={styles.stateCard}>
+          <ActivityIndicator color={MERI_COLORS.accent} />
+          <Text style={styles.stateText}>Loading tasks...</Text>
+        </View>
+      ) : errorMessage ? (
+        <View style={styles.stateCard}>
+          <Text style={styles.errorText}>{errorMessage}</Text>
+          <Pressable style={styles.retryButton} onPress={refreshTasks}>
+            <Text style={styles.retryText}>Retry</Text>
+          </Pressable>
+        </View>
+      ) : tasks.length === 0 ? (
+        <View style={styles.stateCard}>
+          <Text style={styles.emptyText}>No active tasks yet.</Text>
+        </View>
+      ) : (
+        tasks.map((task) => (
+          <Pressable key={task.id} style={styles.taskRow} onPress={() => router.push(`/(tabs)/task/${task.id}`)}>
+            <View>
+              <Text style={styles.taskName}>{task.title}</Text>
+              <Text style={styles.taskRole}>{task.role}</Text>
+            </View>
+            <View style={[styles.badge, task.completed ? styles.badgeDone : styles.badgeActive]}>
+              <Text style={task.completed ? styles.doneText : styles.activeText}>{task.completed ? 'Completed' : 'Active'}</Text>
+            </View>
+          </Pressable>
+        ))
+      )}
     </ScrollView>
   );
 }
@@ -119,6 +137,35 @@ const styles = StyleSheet.create({
   progressText: {
     color: MERI_COLORS.mutedText,
     fontSize: 13,
+  },
+  stateCard: {
+    borderWidth: 1,
+    borderColor: MERI_COLORS.border,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: 'center',
+    gap: 10,
+  },
+  stateText: {
+    color: MERI_COLORS.mutedText,
+  },
+  errorText: {
+    color: MERI_COLORS.danger,
+    fontWeight: '600',
+  },
+  retryButton: {
+    borderWidth: 1,
+    borderColor: MERI_COLORS.border,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  retryText: {
+    color: MERI_COLORS.text,
+    fontWeight: '600',
+  },
+  emptyText: {
+    color: MERI_COLORS.mutedText,
   },
   taskRow: {
     borderWidth: 1,

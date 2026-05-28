@@ -1,5 +1,6 @@
-import { useLocalSearchParams } from 'expo-router';
-import { ActivityIndicator, Image, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useEffect, useState } from 'react';
 
 import { MERI_COLORS } from '@/constants/meri';
@@ -91,53 +92,65 @@ export default function ConsultantDetailsScreen() {
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
-      <View style={styles.headerCard}>
-        {consultant.profileImage ? (
-          <Image source={{ uri: consultant.profileImage }} style={styles.profileImage} />
-        ) : null}
-        <Text style={styles.name}>{consultant.name}</Text>
-        <Text style={styles.role}>{consultant.businessArea || consultant.businessType || consultant.title || 'Consultant'}</Text>
-      </View>
+    <>
+      <Stack.Screen
+        options={{
+          title: 'Consultant Details',
+          headerLeft: () => (
+            <Pressable style={styles.headerBackButton} onPress={() => router.back()}>
+              <Ionicons name="chevron-back" size={24} color={MERI_COLORS.text} />
+            </Pressable>
+          ),
+        }}
+      />
+      <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+        <View style={styles.headerCard}>
+          {consultant.profileImage ? (
+            <Image source={{ uri: consultant.profileImage }} style={styles.profileImage} />
+          ) : null}
+          <Text style={styles.name}>{consultant.name}</Text>
+          <Text style={styles.role}>{consultant.businessArea || consultant.businessType || consultant.title || 'Consultant'}</Text>
+        </View>
 
-      <View style={styles.sectionCard}>
-        <Text style={styles.sectionTitle}>About</Text>
-        <Text style={styles.body}>{consultant.about || 'No profile details available yet.'}</Text>
-        <Text style={styles.meta}>{consultant.email}</Text>
-        {consultant.phone ? <Text style={styles.meta}>{consultant.phone}</Text> : null}
-        {consultant.businessCity ? <Text style={styles.meta}>{consultant.businessCity}</Text> : null}
-      </View>
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>About</Text>
+          <Text style={styles.body}>{consultant.about || 'No profile details available yet.'}</Text>
+          <Text style={styles.meta}>{consultant.email}</Text>
+          {consultant.phone ? <Text style={styles.meta}>{consultant.phone}</Text> : null}
+          {consultant.businessCity ? <Text style={styles.meta}>{consultant.businessCity}</Text> : null}
+        </View>
 
-      <View style={styles.sectionCard}>
-        <Text style={styles.sectionTitle}>Availability Schedule</Text>
-        {availability.length === 0 ? (
-          <Text style={styles.meta}>No open slots available yet.</Text>
-        ) : (
-          availability.map((slot) => (
-            <View key={slot.id} style={styles.scheduleRow}>
-              <Text style={styles.day}>{formatSlotDate(slot.slotStart)}</Text>
-              <Text style={styles.time}>
-                {formatSlotTime(slot.slotStart)} - {formatSlotTime(slot.slotEnd)}
-              </Text>
-              <Text style={styles.available}>Available</Text>
-            </View>
-          ))
-        )}
-      </View>
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Availability Schedule</Text>
+          {availability.length === 0 ? (
+            <Text style={styles.meta}>No open slots available yet.</Text>
+          ) : (
+            availability.map((slot) => (
+              <View key={slot.id} style={styles.scheduleRow}>
+                <Text style={styles.day}>{formatSlotDate(slot.slotStart)}</Text>
+                <Text style={styles.time}>
+                  {formatSlotTime(slot.slotStart)} - {formatSlotTime(slot.slotEnd)}
+                </Text>
+                <Text style={styles.available}>Available</Text>
+              </View>
+            ))
+          )}
+        </View>
 
-      <View style={styles.sectionCard}>
-        <Text style={styles.sectionTitle}>Consultants Testimonials</Text>
-        <Text style={styles.body}>
-          “We love working with this consultant. Their practical guidance helped us improve decision quality and execution speed.”
-        </Text>
-      </View>
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Consultants Testimonials</Text>
+          <Text style={styles.body}>
+            “We love working with this consultant. Their practical guidance helped us improve decision quality and execution speed.”
+          </Text>
+        </View>
 
-      <View style={styles.sectionCard}>
-        <Text style={styles.sectionTitle}>Consultant Review</Text>
-        <Text style={styles.meta}>Rate out of 5: ☆ ☆ ☆ ☆ ☆</Text>
-        <Text style={styles.meta}>Description:</Text>
-      </View>
-    </ScrollView>
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Consultant Review</Text>
+          <Text style={styles.meta}>Rate out of 5: ☆ ☆ ☆ ☆ ☆</Text>
+          <Text style={styles.meta}>Description:</Text>
+        </View>
+      </ScrollView>
+    </>
   );
 }
 
@@ -229,5 +242,9 @@ const styles = StyleSheet.create({
   notAvailable: {
     color: '#DC2626',
     fontWeight: '700',
+  },
+  headerBackButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
 });

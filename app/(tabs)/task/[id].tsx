@@ -1,14 +1,31 @@
-import { useLocalSearchParams } from 'expo-router';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { Ionicons } from '@expo/vector-icons';
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { MERI_COLORS } from '@/constants/meri';
 import { useAppState } from '@/context/app-state';
 
 export default function TaskDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { tasks, markTaskComplete, undoTaskComplete } = useAppState();
+  const { tasks, markTaskComplete, undoTaskComplete, isLoading, errorMessage } = useAppState();
 
   const task = tasks.find((item) => item.id === id);
+
+  if (isLoading) {
+    return (
+      <View style={styles.centered}>
+        <ActivityIndicator color={MERI_COLORS.accent} />
+      </View>
+    );
+  }
+
+  if (errorMessage) {
+    return (
+      <View style={styles.centered}>
+        <Text style={styles.errorText}>{errorMessage}</Text>
+      </View>
+    );
+  }
 
   if (!task) {
     return (
@@ -19,38 +36,50 @@ export default function TaskDetailsScreen() {
   }
 
   return (
-    <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
-      <Text style={styles.title}>{task.title}</Text>
-      <Text style={styles.role}>{task.role}</Text>
-
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Task Description</Text>
-        <Text style={styles.bodyText}>{task.description}</Text>
-      </View>
-
-      <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Asset Files</Text>
-        {task.assets.length ? (
-          task.assets.map((asset) => (
-            <Pressable key={asset.name} style={styles.assetItem} onPress={() => Linking.openURL(asset.url)}>
-              <Text style={styles.assetName}>{asset.name}</Text>
-              <Text style={styles.assetLink}>Open</Text>
+    <>
+      <Stack.Screen
+        options={{
+          title: 'Task Details',
+          headerLeft: () => (
+            <Pressable style={styles.headerBackButton} onPress={() => router.back()}>
+              <Ionicons name="chevron-back" size={24} color={MERI_COLORS.text} />
             </Pressable>
-          ))
-        ) : (
-          <Text style={styles.bodyText}>No asset files associated with this task.</Text>
-        )}
-      </View>
+          ),
+        }}
+      />
+      <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
+        <Text style={styles.title}>{task.title}</Text>
+        <Text style={styles.role}>{task.role}</Text>
 
-      <View style={styles.actionsRow}>
-        <Pressable style={styles.completeButton} onPress={() => markTaskComplete(task.id)}>
-          <Text style={styles.completeText}>Action Completed</Text>
-        </Pressable>
-        <Pressable style={styles.undoButton} onPress={() => undoTaskComplete(task.id)}>
-          <Text style={styles.undoText}>Undo</Text>
-        </Pressable>
-      </View>
-    </ScrollView>
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Task Description</Text>
+          <Text style={styles.bodyText}>{task.description}</Text>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Asset Files</Text>
+          {task.assets.length ? (
+            task.assets.map((asset) => (
+              <Pressable key={asset.name} style={styles.assetItem} onPress={() => Linking.openURL(asset.url)}>
+                <Text style={styles.assetName}>{asset.name}</Text>
+                <Text style={styles.assetLink}>Open</Text>
+              </Pressable>
+            ))
+          ) : (
+            <Text style={styles.bodyText}>No asset files associated with this task.</Text>
+          )}
+        </View>
+
+        <View style={styles.actionsRow}>
+          <Pressable style={styles.completeButton} onPress={() => markTaskComplete(task.id)}>
+            <Text style={styles.completeText}>Action Completed</Text>
+          </Pressable>
+          <Pressable style={styles.undoButton} onPress={() => undoTaskComplete(task.id)}>
+            <Text style={styles.undoText}>Undo</Text>
+          </Pressable>
+        </View>
+      </ScrollView>
+    </>
   );
 }
 
@@ -69,6 +98,11 @@ const styles = StyleSheet.create({
     color: MERI_COLORS.text,
     fontSize: 20,
     fontWeight: '700',
+  },
+  errorText: {
+    color: MERI_COLORS.danger,
+    fontSize: 16,
+    fontWeight: '600',
   },
   container: {
     padding: 16,
@@ -143,5 +177,9 @@ const styles = StyleSheet.create({
   undoText: {
     color: MERI_COLORS.accent,
     fontWeight: '700',
+  },
+  headerBackButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
   },
 });
