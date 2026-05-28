@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react';
+import { router } from 'expo-router';
 import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 
 import { MERI_COLORS } from '@/constants/meri';
+import { logout } from '@/services/auth';
 import { fetchProfile, updateProfile, type ProfileUpdatePayload, type UploadFile } from '@/services/profile';
 
 type TabKey = 'personal' | 'business' | 'security';
@@ -52,6 +54,7 @@ export default function ProfileTabScreen() {
   const [pendingImage, setPendingImage] = useState<PendingProfileImage | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -200,6 +203,25 @@ export default function ProfileTabScreen() {
     setPendingImage(null);
     setErrorMessage(null);
     setSuccessMessage(null);
+  };
+
+  const handleLogout = async () => {
+    if (isLoggingOut) {
+      return;
+    }
+
+    setIsLoggingOut(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      await logout();
+      router.replace('/(auth)/login');
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to log out.');
+    } finally {
+      setIsLoggingOut(false);
+    }
   };
 
   const displayName = profile.name || 'Your name';
@@ -467,6 +489,14 @@ export default function ProfileTabScreen() {
               <Text style={styles.ghostButtonText}>Clear</Text>
             </Pressable>
           </View>
+
+          <Pressable
+            style={[styles.logoutButton, isLoggingOut && styles.buttonDisabled]}
+            onPress={handleLogout}
+            disabled={isLoggingOut}
+          >
+            <Text style={styles.logoutText}>{isLoggingOut ? 'Signing out...' : 'Sign out'}</Text>
+          </Pressable>
         </View>
       ) : null}
     </ScrollView>
@@ -782,6 +812,19 @@ const styles = StyleSheet.create({
   },
   ghostButtonText: {
     color: MERI_COLORS.text,
+    fontWeight: '700',
+  },
+  logoutButton: {
+    marginTop: 14,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: MERI_COLORS.danger,
+    paddingVertical: 12,
+    alignItems: 'center',
+    backgroundColor: '#FEE2E2',
+  },
+  logoutText: {
+    color: MERI_COLORS.danger,
     fontWeight: '700',
   },
 });

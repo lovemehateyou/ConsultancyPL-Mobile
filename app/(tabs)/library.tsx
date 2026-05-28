@@ -51,10 +51,10 @@ export default function LibraryTabScreen() {
 
   const visibleItems = useMemo(() => {
     if (pricing === 'Free') {
-      return items.filter((item) => item.contentType === 'article');
+      return items.filter((item) => item.contentType === 'article' || item.contentType === 'file');
     }
     if (pricing === 'Paid') {
-      return items.filter((item) => item.contentType === 'file');
+      return items.filter((item) => item.contentType === 'file' || item.contentType === 'article');
     }
     return items;
   }, [items, pricing]);

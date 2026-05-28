@@ -1,10 +1,39 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useEffect, useState } from 'react';
 import { Tabs } from 'expo-router';
 
 import { TopMenuButton } from '@/components/top-menu-button';
 import { MERI_COLORS } from '@/constants/meri';
+import { fetchProfile } from '@/services/profile';
 
 export default function TabLayout() {
+  const [role, setRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isActive = true;
+
+    const loadRole = async () => {
+      try {
+        const profile = await fetchProfile();
+        if (isActive) {
+          setRole(profile.role ?? null);
+        }
+      } catch {
+        if (isActive) {
+          setRole(null);
+        }
+      }
+    };
+
+    loadRole();
+
+    return () => {
+      isActive = false;
+    };
+  }, []);
+
+  const canShowChat = role === 'user';
+
   return (
     <Tabs
       initialRouteName="home"
@@ -30,6 +59,19 @@ export default function TabLayout() {
           tabBarIcon: ({ color, size }) => <Ionicons name="library" color={color} size={size} />,
         }}
       />
+      {canShowChat ? (
+        <Tabs.Screen
+          name="chat"
+          options={{
+            title: 'AI Chat',
+            tabBarIcon: ({ color, size }) => (
+              <Ionicons name="chatbubbles" color={color} size={size} />
+            ),
+          }}
+        />
+      ) : (
+        <Tabs.Screen name="chat" options={{ href: null }} />
+      )}
       <Tabs.Screen
         name="consultant"
         options={{
