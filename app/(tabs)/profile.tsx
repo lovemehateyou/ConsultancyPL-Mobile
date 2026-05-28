@@ -5,7 +5,9 @@ import * as ImagePicker from 'expo-image-picker';
 
 import { MERI_COLORS } from '@/constants/meri';
 import { logout } from '@/services/auth';
+import { fetchBookings } from '@/services/bookings';
 import { fetchProfile, updateProfile, type ProfileUpdatePayload, type UploadFile } from '@/services/profile';
+import { assignMatchingGoals, fetchMyGoals, type UserGoal } from '@/services/task';
 
 type TabKey = 'personal' | 'business' | 'security';
 
@@ -41,10 +43,16 @@ const EMPTY_PROFILE: ProfileForm = {
   profileImage: null,
 };
 
-const STATS = [
-  { label: 'Approved', value: 4, color: MERI_COLORS.success },
-  { label: 'Requests', value: 9, color: MERI_COLORS.accent },
-  { label: 'Tasks', value: 3, color: '#F59E0B' },
+type StatItem = {
+  label: string;
+  value: number;
+  color: string;
+};
+
+const DEFAULT_STATS: StatItem[] = [
+  { label: 'Approved', value: 0, color: MERI_COLORS.success },
+  { label: 'Requests', value: 0, color: MERI_COLORS.accent },
+  { label: 'Tasks', value: 0, color: '#F59E0B' },
 ];
 
 export default function ProfileTabScreen() {
@@ -55,6 +63,7 @@ export default function ProfileTabScreen() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const [stats, setStats] = useState<StatItem[]>(DEFAULT_STATS);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
@@ -66,9 +75,19 @@ export default function ProfileTabScreen() {
       setErrorMessage(null);
 
       try {
-        const user = await fetchProfile();
+        const [user, bookings, initialGoals] = await Promise.all([
+          fetchProfile(),
+          fetchBookings(),
+          fetchMyGoals(),
+        ]);
         if (!isActive) {
           return;
+        }
+
+        let goals: UserGoal[] = initialGoals;
+        if (goals.length === 0) {
+          await assignMatchingGoals();
+          goals = await fetchMyGoals();
         }
 
         const normalized: ProfileForm = {
@@ -88,9 +107,26 @@ export default function ProfileTabScreen() {
 
         setProfile(normalized);
         setInitialProfile(normalized);
+
+        const approvedCount = bookings.filter((booking) =>
+          booking.status === 'accepted' || booking.status === 'completed',
+        ).length;
+        const requestCount = bookings.filter((booking) => booking.status === 'pending' || booking.status === 'declined' || booking.status === 'accepted' ).length;
+        const taskCount = goals.reduce((total, goal) => {
+          const progressItems = goal.UserTaskProgresses ?? goal.UserTaskProgress ?? [];
+          const activeTasks = progressItems.filter((item) => !item.isCompleted).length;
+          return total + activeTasks;
+        }, 0);
+
+        setStats([
+          { label: 'Approved', value: approvedCount, color: MERI_COLORS.success },
+          { label: 'Requests', value: requestCount, color: MERI_COLORS.accent },
+          { label: 'Tasks', value: taskCount, color: '#F59E0B' },
+        ]);
       } catch (err) {
         if (isActive) {
           setErrorMessage(err instanceof Error ? err.message : 'Failed to load profile.');
+          setStats(DEFAULT_STATS);
         }
       } finally {
         if (isActive) {
@@ -284,7 +320,7 @@ export default function ProfileTabScreen() {
         </View>
 
         <View style={styles.statsRow}>
-          {STATS.map((stat) => (
+          {stats.map((stat) => (
             <View key={stat.label} style={styles.statCard}>
               <Text style={[styles.statValue, { color: stat.color }]}>{stat.value}</Text>
               <Text style={styles.statLabel}>{stat.label}</Text>

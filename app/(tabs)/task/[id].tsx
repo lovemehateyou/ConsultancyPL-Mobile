@@ -1,6 +1,7 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
 
 import { MERI_COLORS } from '@/constants/meri';
 import { useAppState } from '@/context/app-state';
@@ -8,6 +9,7 @@ import { useAppState } from '@/context/app-state';
 export default function TaskDetailsScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { tasks, markTaskComplete, undoTaskComplete, isLoading, errorMessage } = useAppState();
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const task = tasks.find((item) => item.id === id);
 
@@ -35,6 +37,28 @@ export default function TaskDetailsScreen() {
     );
   }
 
+  const isCompleted = task.completed;
+
+  const handleComplete = async () => {
+    if (isUpdating || isCompleted) {
+      return;
+    }
+
+    setIsUpdating(true);
+    await markTaskComplete(task.id);
+    setIsUpdating(false);
+  };
+
+  const handleUndo = async () => {
+    if (isUpdating || !isCompleted) {
+      return;
+    }
+
+    setIsUpdating(true);
+    await undoTaskComplete(task.id);
+    setIsUpdating(false);
+  };
+
   return (
     <>
       <Stack.Screen
@@ -50,6 +74,14 @@ export default function TaskDetailsScreen() {
       <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
         <Text style={styles.title}>{task.title}</Text>
         <Text style={styles.role}>{task.role}</Text>
+        <View style={styles.statusRow}>
+          <View style={[styles.statusPill, isCompleted ? styles.statusPillDone : styles.statusPillActive]}>
+            <Text style={[styles.statusText, isCompleted ? styles.statusTextDone : styles.statusTextActive]}>
+              {isCompleted ? 'Completed' : 'Active'}
+            </Text>
+          </View>
+          {isUpdating ? <Text style={styles.statusMeta}>Updating...</Text> : null}
+        </View>
 
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Task Description</Text>
@@ -71,10 +103,18 @@ export default function TaskDetailsScreen() {
         </View>
 
         <View style={styles.actionsRow}>
-          <Pressable style={styles.completeButton} onPress={() => markTaskComplete(task.id)}>
-            <Text style={styles.completeText}>Action Completed</Text>
+          <Pressable
+            style={[styles.completeButton, (isCompleted || isUpdating) && styles.buttonDisabled]}
+            onPress={handleComplete}
+            disabled={isCompleted || isUpdating}
+          >
+            <Text style={styles.completeText}>{isCompleted ? 'Completed' : 'Mark Completed'}</Text>
           </Pressable>
-          <Pressable style={styles.undoButton} onPress={() => undoTaskComplete(task.id)}>
+          <Pressable
+            style={[styles.undoButton, (!isCompleted || isUpdating) && styles.buttonDisabled]}
+            onPress={handleUndo}
+            disabled={!isCompleted || isUpdating}
+          >
             <Text style={styles.undoText}>Undo</Text>
           </Pressable>
         </View>
@@ -116,6 +156,37 @@ const styles = StyleSheet.create({
   role: {
     color: MERI_COLORS.mutedText,
     marginTop: -2,
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  statusPill: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 999,
+  },
+  statusPillActive: {
+    backgroundColor: '#DBEAFE',
+  },
+  statusPillDone: {
+    backgroundColor: '#DCFCE7',
+  },
+  statusText: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  statusTextActive: {
+    color: MERI_COLORS.accent,
+  },
+  statusTextDone: {
+    color: MERI_COLORS.success,
+  },
+  statusMeta: {
+    color: MERI_COLORS.mutedText,
+    fontSize: 12,
   },
   card: {
     borderWidth: 1,
@@ -177,6 +248,9 @@ const styles = StyleSheet.create({
   undoText: {
     color: MERI_COLORS.accent,
     fontWeight: '700',
+  },
+  buttonDisabled: {
+    opacity: 0.6,
   },
   headerBackButton: {
     paddingHorizontal: 8,
