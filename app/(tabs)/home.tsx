@@ -5,14 +5,27 @@ import { MERI_COLORS } from '@/constants/meri';
 import { useAppState } from '@/context/app-state';
 
 export default function HomeTabScreen() {
-  const { tasks, completedCount, progressPercent, isLoading, errorMessage, refreshTasks } = useAppState();
+  const { goals, tasks, goalsCount, completedCount, progressPercent, isLoading, errorMessage, refreshTasks } = useAppState();
 
   const stats = [
+    { label: 'Goals', value: String(goalsCount) },
     { label: 'Total Tasks', value: String(tasks.length) },
     { label: 'Tasks Completed', value: String(completedCount) },
     { label: 'Tasks Left', value: String(tasks.length - completedCount) },
     { label: 'Progress', value: `${progressPercent}%` },
   ];
+
+  const getGoalStatusLabel = (status: string) => {
+    if (status === 'completed') {
+      return 'Completed';
+    }
+
+    if (status === 'not_started') {
+      return 'Not Started';
+    }
+
+    return 'In Progress';
+  };
 
   return (
     <ScrollView style={styles.screen} contentContainerStyle={styles.container}>
@@ -36,11 +49,11 @@ export default function HomeTabScreen() {
         <Text style={styles.progressText}>{progressPercent}% completed · {100 - progressPercent}% remaining</Text>
       </View>
 
-      <Text style={styles.sectionTitle}>Active Tasks</Text>
+      <Text style={styles.sectionTitle}>Your Goals</Text>
       {isLoading ? (
         <View style={styles.stateCard}>
           <ActivityIndicator color={MERI_COLORS.accent} />
-          <Text style={styles.stateText}>Loading tasks...</Text>
+          <Text style={styles.stateText}>Loading goals...</Text>
         </View>
       ) : errorMessage ? (
         <View style={styles.stateCard}>
@@ -49,22 +62,52 @@ export default function HomeTabScreen() {
             <Text style={styles.retryText}>Retry</Text>
           </Pressable>
         </View>
-      ) : tasks.length === 0 ? (
+      ) : goals.length === 0 ? (
         <View style={styles.stateCard}>
-          <Text style={styles.emptyText}>No active tasks yet.</Text>
+          <Text style={styles.emptyText}>No goals assigned yet.</Text>
         </View>
       ) : (
-        tasks.map((task) => (
-          <Pressable key={task.id} style={styles.taskRow} onPress={() => router.push(`/(tabs)/task/${task.id}`)}>
-            <View>
-              <Text style={styles.taskName}>{task.title}</Text>
-              <Text style={styles.taskRole}>{task.role}</Text>
-            </View>
-            <View style={[styles.badge, task.completed ? styles.badgeDone : styles.badgeActive]}>
-              <Text style={task.completed ? styles.doneText : styles.activeText}>{task.completed ? 'Completed' : 'Active'}</Text>
-            </View>
-          </Pressable>
-        ))
+        goals.map((goal) => {
+          const completedTasks = goal.tasks.filter((task) => task.completed).length;
+          const totalTasks = goal.tasks.length;
+          const isCompleted = goal.status === 'completed';
+          const statusLabel = getGoalStatusLabel(goal.status);
+
+          return (
+            <Pressable
+              key={goal.id}
+              style={styles.goalRow}
+              onPress={() =>
+                router.push({
+                  pathname: '/(tabs)/goal/[id]',
+                  params: { id: String(goal.id) },
+                })
+              }
+            >
+              <View style={styles.goalHeader}>
+                <View style={styles.goalInfo}>
+                  <Text style={styles.goalTitle}>{goal.title}</Text>
+                  <Text style={styles.goalCategory}>{goal.category}</Text>
+                </View>
+                <View style={[styles.badge, isCompleted ? styles.badgeDone : styles.badgeActive]}>
+                  <Text style={isCompleted ? styles.doneText : styles.activeText}>{statusLabel}</Text>
+                </View>
+              </View>
+              <Text style={styles.goalMeta}>
+                {completedTasks} of {totalTasks} tasks completed
+              </Text>
+              <View style={styles.goalProgressTrack}>
+                <View
+                  style={[
+                    styles.goalProgressFill,
+                    isCompleted && styles.goalProgressFillDone,
+                    { width: `${goal.progress}%` },
+                  ]}
+                />
+              </View>
+            </Pressable>
+          );
+        })
       )}
     </ScrollView>
   );
@@ -167,23 +210,47 @@ const styles = StyleSheet.create({
   emptyText: {
     color: MERI_COLORS.mutedText,
   },
-  taskRow: {
+  goalRow: {
     borderWidth: 1,
     borderColor: MERI_COLORS.border,
     borderRadius: 12,
     padding: 12,
+    gap: 10,
+  },
+  goalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  taskName: {
+  goalInfo: {
+    flex: 1,
+    paddingRight: 12,
+  },
+  goalTitle: {
     color: MERI_COLORS.text,
     fontWeight: '600',
     marginBottom: 3,
   },
-  taskRole: {
+  goalCategory: {
     color: MERI_COLORS.mutedText,
     fontSize: 12,
+  },
+  goalMeta: {
+    color: MERI_COLORS.mutedText,
+    fontSize: 12,
+  },
+  goalProgressTrack: {
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: '#DBEAFE',
+    overflow: 'hidden',
+  },
+  goalProgressFill: {
+    height: '100%',
+    backgroundColor: MERI_COLORS.accent,
+  },
+  goalProgressFillDone: {
+    backgroundColor: MERI_COLORS.success,
   },
   badge: {
     paddingHorizontal: 10,

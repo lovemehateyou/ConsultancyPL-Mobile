@@ -19,8 +19,21 @@ export type TaskItem = {
   stepOrder?: number;
 };
 
-type AppStateContextValue = {
+export type GoalItem = {
+  id: number;
+  goalId: number;
+  title: string;
+  category: string;
+  description: string;
+  status: string;
+  progress: number;
   tasks: TaskItem[];
+};
+
+type AppStateContextValue = {
+  goals: GoalItem[];
+  tasks: TaskItem[];
+  goalsCount: number;
   progressPercent: number;
   completedCount: number;
   isLoading: boolean;
@@ -33,10 +46,12 @@ type AppStateContextValue = {
 const AppStateContext = createContext<AppStateContextValue | undefined>(undefined);
 
 export function AppStateProvider({ children }: { children: ReactNode }) {
-  const [tasks, setTasks] = useState<TaskItem[]>([]);
+  const [goals, setGoals] = useState<GoalItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  const tasks = useMemo(() => goals.flatMap((goal) => goal.tasks), [goals]);
+  const goalsCount = useMemo(() => goals.length, [goals]);
   const completedCount = useMemo(() => tasks.filter((task) => task.completed).length, [tasks]);
   const progressPercent = useMemo(
     () => (tasks.length ? Math.round((completedCount / tasks.length) * 100) : 0),
@@ -56,22 +71,37 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       }));
   };
 
-  const mapGoalsToTasks = (goals: UserGoal[]) => {
-    const mapped: TaskItem[] = [];
+  const calculateProgress = (items: TaskItem[]) => {
+    const completed = items.filter((task) => task.completed).length;
+    const progress = items.length ? Math.round((completed / items.length) * 100) : 0;
+    return { completed, progress };
+  };
 
-    goals
-      .filter((goal) => goal.status !== 'completed')
-      .forEach((goal) => {
-        const category = goal.Goal?.category ?? 'Task';
-        const progressItems = goal.UserTaskProgresses ?? goal.UserTaskProgress ?? [];
+  const resolveGoalStatus = (progress: number, currentStatus?: string) => {
+    if (progress === 100) {
+      return 'completed';
+    }
 
-        progressItems.forEach((progress) => {
+    if (currentStatus === 'not_started') {
+      return 'not_started';
+    }
+
+    return 'in_progress';
+  };
+
+  const mapGoalsToItems = (goalList: UserGoal[]) => {
+    const mapped = goalList.map((goal) => {
+      const category = goal.Goal?.category ?? 'Goal';
+      const progressItems = goal.UserTaskProgresses ?? goal.UserTaskProgress ?? [];
+
+      const tasksForGoal = progressItems
+        .map((progress) => {
           const task = progress.Task;
           if (!task) {
-            return;
+            return null;
           }
 
-          mapped.push({
+          return {
             id: String(task.id),
             taskId: task.id,
             userGoalId: goal.id,
@@ -81,15 +111,32 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
             assets: mapLinksToAssets(task.mapLinks ?? undefined),
             completed: Boolean(progress.isCompleted),
             stepOrder: task.stepOrder,
-          });
-        });
-      });
+          } as TaskItem;
+        })
+        .filter((task): task is TaskItem => Boolean(task))
+        .sort((a, b) => (a.stepOrder ?? 0) - (b.stepOrder ?? 0));
+
+      const { progress } = calculateProgress(tasksForGoal);
+
+      return {
+        id: goal.id,
+        goalId: goal.goalId,
+        title: goal.Goal?.title ?? 'Goal',
+        category,
+        description: goal.Goal?.description ?? '',
+        status: resolveGoalStatus(progress, goal.status),
+        progress,
+        tasks: tasksForGoal,
+      } as GoalItem;
+    });
 
     return mapped.sort((a, b) => {
-      if (a.userGoalId !== b.userGoalId) {
-        return a.userGoalId - b.userGoalId;
+      const aCompleted = a.status === 'completed';
+      const bCompleted = b.status === 'completed';
+      if (aCompleted !== bCompleted) {
+        return aCompleted ? 1 : -1;
       }
-      return (a.stepOrder ?? 0) - (b.stepOrder ?? 0);
+      return a.id - b.id;
     });
   };
 
@@ -103,9 +150,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         await assignMatchingGoals();
         goals = await fetchMyGoals();
       }
-      setTasks(mapGoalsToTasks(goals));
+      setGoals(mapGoalsToItems(goals));
     } catch (err) {
-      setErrorMessage(err instanceof Error ? err.message : 'Failed to load tasks.');
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to load goals.');
     } finally {
       setIsLoading(false);
     }
@@ -116,17 +163,32 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, [refreshTasks]);
 
   const markTaskComplete = async (taskId: string) => {
-    const target = tasks.find((task) => task.id === taskId);
-    if (!target) {
+    const targetGoal = goals.find((goal) => goal.tasks.some((task) => task.id === taskId));
+    const targetTask = targetGoal?.tasks.find((task) => task.id === taskId);
+    if (!targetGoal || !targetTask) {
       return;
     }
 
     try {
-      await completeGoalTask({ userGoalId: target.userGoalId, taskId: target.taskId });
-      setTasks((previous) =>
-        previous.map((task) =>
-          task.id === taskId ? { ...task, completed: true } : task,
-        ),
+      await completeGoalTask({ userGoalId: targetTask.userGoalId, taskId: targetTask.taskId });
+      setGoals((previous) =>
+        previous.map((goal) => {
+          if (goal.id !== targetGoal.id) {
+            return goal;
+          }
+
+          const updatedTasks = goal.tasks.map((task) =>
+            task.id === taskId ? { ...task, completed: true } : task,
+          );
+          const { progress } = calculateProgress(updatedTasks);
+
+          return {
+            ...goal,
+            tasks: updatedTasks,
+            progress,
+            status: resolveGoalStatus(progress, goal.status),
+          };
+        }),
       );
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Failed to complete task.');
@@ -134,17 +196,32 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   };
 
   const undoTaskComplete = async (taskId: string) => {
-    const target = tasks.find((task) => task.id === taskId);
-    if (!target) {
+    const targetGoal = goals.find((goal) => goal.tasks.some((task) => task.id === taskId));
+    const targetTask = targetGoal?.tasks.find((task) => task.id === taskId);
+    if (!targetGoal || !targetTask) {
       return;
     }
 
     try {
-      await undoGoalTask({ userGoalId: target.userGoalId, taskId: target.taskId });
-      setTasks((previous) =>
-        previous.map((task) =>
-          task.id === taskId ? { ...task, completed: false } : task,
-        ),
+      await undoGoalTask({ userGoalId: targetTask.userGoalId, taskId: targetTask.taskId });
+      setGoals((previous) =>
+        previous.map((goal) => {
+          if (goal.id !== targetGoal.id) {
+            return goal;
+          }
+
+          const updatedTasks = goal.tasks.map((task) =>
+            task.id === taskId ? { ...task, completed: false } : task,
+          );
+          const { progress } = calculateProgress(updatedTasks);
+
+          return {
+            ...goal,
+            tasks: updatedTasks,
+            progress,
+            status: resolveGoalStatus(progress, goal.status),
+          };
+        }),
       );
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : 'Failed to undo task.');
@@ -154,7 +231,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   return (
     <AppStateContext.Provider
       value={{
+        goals,
         tasks,
+        goalsCount,
         progressPercent,
         completedCount,
         isLoading,

@@ -88,6 +88,7 @@ export default function TabLayout() {
       />
       <Tabs.Screen name="history" options={{ href: null, title: 'History' }} />
       <Tabs.Screen name="notifications" options={{ href: null, title: 'Notifications' }} />
+      <Tabs.Screen name="goal/[id]" options={{ href: null, title: 'Goal Details' }} />
       <Tabs.Screen name="task/[id]" options={{ href: null, title: 'Task Details' }} />
       <Tabs.Screen name="article/[id]" options={{ href: null, title: 'Article' }} />
       <Tabs.Screen name="consultant/[id]" options={{ href: null, title: 'Consultant Details' }} />
