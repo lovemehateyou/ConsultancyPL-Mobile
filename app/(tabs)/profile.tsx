@@ -6,7 +6,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { MERI_COLORS } from '@/constants/meri';
 import { logout } from '@/services/auth';
 import { fetchBookings } from '@/services/bookings';
-import { fetchProfile, updateProfile, type ProfileUpdatePayload, type UploadFile } from '@/services/profile';
+import { changePassword, fetchProfile, updateProfile, type ProfileUpdatePayload, type UploadFile } from '@/services/profile';
 import { assignMatchingGoals, fetchMyGoals, type UserGoal } from '@/services/task';
 
 type TabKey = 'personal' | 'business' | 'security';
@@ -62,10 +62,13 @@ export default function ProfileTabScreen() {
   const [pendingImage, setPendingImage] = useState<PendingProfileImage | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [stats, setStats] = useState<StatItem[]>(DEFAULT_STATS);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [nextPassword, setNextPassword] = useState('');
 
   useEffect(() => {
     let isActive = true;
@@ -239,6 +242,42 @@ export default function ProfileTabScreen() {
     setPendingImage(null);
     setErrorMessage(null);
     setSuccessMessage(null);
+  };
+
+  const handleClearPassword = () => {
+    setCurrentPassword('');
+    setNextPassword('');
+    setErrorMessage(null);
+    setSuccessMessage(null);
+  };
+
+  const handleChangePassword = async () => {
+    if (isChangingPassword) {
+      return;
+    }
+
+    if (!currentPassword.trim() || !nextPassword.trim()) {
+      setErrorMessage('Please enter both your current and new password.');
+      return;
+    }
+
+    setIsChangingPassword(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      const response = await changePassword({
+        oldPassword: currentPassword,
+        newPassword: nextPassword,
+      });
+      setSuccessMessage(response.message || 'Password updated successfully.');
+      setCurrentPassword('');
+      setNextPassword('');
+    } catch (err) {
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to update password.');
+    } finally {
+      setIsChangingPassword(false);
+    }
   };
 
   const handleLogout = async () => {
@@ -510,18 +549,28 @@ export default function ProfileTabScreen() {
             label="Current Password"
             placeholder="Enter current password"
             secureTextEntry
+            value={currentPassword}
+            onChangeText={setCurrentPassword}
           />
           <Field
             label="New Password"
             placeholder="Enter new password"
             secureTextEntry
+            value={nextPassword}
+            onChangeText={setNextPassword}
           />
 
           <View style={styles.actionRow}>
-            <Pressable style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>Update Password</Text>
+            <Pressable
+              style={[styles.primaryButton, isChangingPassword && styles.buttonDisabled]}
+              onPress={handleChangePassword}
+              disabled={isChangingPassword}
+            >
+              <Text style={styles.primaryButtonText}>
+                {isChangingPassword ? 'Updating...' : 'Update Password'}
+              </Text>
             </Pressable>
-            <Pressable style={styles.ghostButton}>
+            <Pressable style={styles.ghostButton} onPress={handleClearPassword}>
               <Text style={styles.ghostButtonText}>Clear</Text>
             </Pressable>
           </View>

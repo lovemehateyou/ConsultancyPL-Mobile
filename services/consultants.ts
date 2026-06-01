@@ -7,6 +7,7 @@ export type Consultant = {
   title?: string | null;
   about?: string | null;
   profileImage?: string | null;
+  cv?: string | null;
   phone?: string | null;
   businessName?: string | null;
   businessCity?: string | null;

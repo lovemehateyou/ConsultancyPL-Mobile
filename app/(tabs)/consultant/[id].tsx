@@ -1,6 +1,6 @@
 import { Stack, router, useLocalSearchParams } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { ActivityIndicator, Image, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Image, Linking, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { useEffect, useState } from 'react';
 
 import { MERI_COLORS } from '@/constants/meri';
@@ -149,6 +149,19 @@ export default function ConsultantDetailsScreen() {
       day: 'numeric',
     });
 
+  const resolveAssetUrl = (value?: string | null) => {
+    if (!value) {
+      return null;
+    }
+
+    if (/^https?:\/\//i.test(value)) {
+      return value;
+    }
+
+    const baseUrl = process.env.EXPO_PUBLIC_API_BASE_URL?.replace(/\/$/, '') || '';
+    return baseUrl ? `${baseUrl}${value.startsWith('/') ? value : `/${value}`}` : value;
+  };
+
   const getInitials = (name?: string | null) => {
     if (!name) {
       return '?';
@@ -267,6 +280,26 @@ export default function ConsultantDetailsScreen() {
     }
   };
 
+  const handleOpenCv = async () => {
+    const cvUrl = resolveAssetUrl(consultant?.cv);
+    if (!cvUrl) {
+      setReviewSubmitError('CV is not available for this consultant.');
+      return;
+    }
+
+    try {
+      const canOpen = await Linking.canOpenURL(cvUrl);
+      if (!canOpen) {
+        setReviewSubmitError('Unable to open the CV file.');
+        return;
+      }
+
+      await Linking.openURL(cvUrl);
+    } catch (err) {
+      setReviewSubmitError(err instanceof Error ? err.message : 'Unable to open the CV file.');
+    }
+  };
+
   if (isLoading) {
     return (
       <View style={styles.centered}>
@@ -309,7 +342,7 @@ export default function ConsultantDetailsScreen() {
             <Image source={{ uri: consultant.profileImage }} style={styles.profileImage} />
           ) : null}
           <Text style={styles.name}>{consultant.name}</Text>
-          <Text style={styles.role}>{consultant.businessArea || consultant.businessType || consultant.title || 'Consultant'}</Text>
+          <Text style={styles.role}>{consultant.title || consultant.businessArea || consultant.businessType || 'Consultant'}</Text>
         </View>
 
         <View style={styles.sectionCard}>
@@ -318,6 +351,14 @@ export default function ConsultantDetailsScreen() {
           <Text style={styles.meta}>{consultant.email}</Text>
           {consultant.phone ? <Text style={styles.meta}>{consultant.phone}</Text> : null}
           {consultant.businessCity ? <Text style={styles.meta}>{consultant.businessCity}</Text> : null}
+          {consultant.cv ? (
+            <Pressable style={styles.cvButton} onPress={handleOpenCv}>
+              <Ionicons name="document-text-outline" size={18} color={MERI_COLORS.accent} />
+              <Text style={styles.cvButtonText}>Open CV</Text>
+            </Pressable>
+          ) : (
+            <Text style={styles.meta}>CV not uploaded yet.</Text>
+          )}
         </View>
 
         <View style={styles.sectionCard}>
@@ -488,6 +529,23 @@ const styles = StyleSheet.create({
   },
   meta: {
     color: MERI_COLORS.mutedText,
+  },
+  cvButton: {
+    marginTop: 6,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'flex-start',
+    borderWidth: 1,
+    borderColor: MERI_COLORS.border,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    backgroundColor: MERI_COLORS.card,
+  },
+  cvButtonText: {
+    color: MERI_COLORS.accent,
+    fontWeight: '700',
   },
   scheduleRow: {
     borderWidth: 1,

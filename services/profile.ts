@@ -43,9 +43,18 @@ export type ProfileUpdatePayload = {
   profileImage?: UploadFile;
 };
 
+export type ChangePasswordPayload = {
+  oldPassword: string;
+  newPassword: string;
+};
+
 type ProfileResponse = {
   user: UserProfile;
   message?: string;
+};
+
+type ChangePasswordResponse = {
+  message: string;
 };
 
 export const fetchProfile = async () => {
@@ -82,4 +91,11 @@ export const updateProfile = async (payload: ProfileUpdatePayload) => {
   });
 
   return response.user;
+};
+
+export const changePassword = async (payload: ChangePasswordPayload) => {
+  return apiRequest<ChangePasswordResponse>('/users/change-password', {
+    method: 'PATCH',
+    body: payload,
+  });
 };

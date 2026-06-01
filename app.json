@@ -1,12 +1,20 @@
 {
   "expo": {
-    "name": "learntut",
+    "name": "Meri",
     "slug": "learntut",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
-    "scheme": "learntut",
+    "icon": "./assets/images/logo.png",
+    "scheme": "meri",
     "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/images/logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff",
+      "dark": {
+        "backgroundColor": "#000000"
+      }
+    },
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
@@ -22,7 +30,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.alazarzerubabel.meri"
     },
     "web": {
       "output": "static",
@@ -49,7 +58,11 @@
       "reactCompiler": true
     },
     "extra": {
-      "apiBaseUrl": "http://192.168.1.4:5000"
+      "apiBaseUrl": "https://digital-consultancy-platform-backend-production.up.railway.app",
+      "router": {},
+      "eas": {
+        "projectId": "823703e1-40cb-4949-bb6a-0cc2e9f73bfa"
+      }
     }
   }
 }
